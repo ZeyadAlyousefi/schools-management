@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import Link from 'next/link';
 import { getPlans } from '@/app/actions/plans';
 import { useLanguage } from '@/context/LanguageProvider';
+import { formatCurrency } from '@/lib/formatters';
 
 const iconMap: Record<string, React.ElementType> = {
   Zap, Shield, Crown, Star, Rocket, Gem, Sparkles, Globe
@@ -126,8 +127,8 @@ const PricingPage = () => {
                                 </h3>
                                 <div className="mt-8 flex flex-col">
                                     <div className="flex items-baseline gap-1">
-                                      <span className="text-6xl font-black text-text-primary">
-                                        {isAr ? `ر.ي ${plan.price}` : `$${plan.price}`}
+                                      <span className="text-4xl sm:text-5xl font-black text-text-primary">
+                                        {formatCurrency(plan.price, isAr ? 'ar' : 'en')}
                                       </span>
                                       <span className="text-text-muted font-bold text-lg">/{durationLabel}</span>
                                     </div>

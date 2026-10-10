@@ -378,11 +378,37 @@ export async function approveSchoolApplication(id: string, notes?: string) {
         },
       });
 
+      // 4. Create initial active subscription and transaction for the newly approved school
+      const planName = school.plan ? (school.plan.charAt(0).toUpperCase() + school.plan.slice(1)) : "Basic";
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(endDate.getFullYear() + 1);
+
+      await tx.subscription.create({
+        data: {
+          transactionId: `TXN-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`,
+          amount: planName.toLowerCase().includes('enterprise') ? 750000 : (planName.toLowerCase().includes('pro') || planName.toLowerCase().includes('premium')) ? 350000 : 150000,
+          currency: "YER",
+          status: "SUCCESS",
+          planName: planName,
+          duration: "1 Year",
+          schoolId: school.id,
+          method: "Direct Onboarding / اعتماد مباشر",
+          customerName: application.adminName,
+          customerEmail: application.email,
+          customerPhone: application.phone,
+          startDate,
+          endDate,
+        }
+      });
+
       return { school, adminUser, application: updatedApplication };
     });
 
     safeRevalidatePath("/dashboard/super-admin/applications");
     safeRevalidatePath("/dashboard/super-admin/schools");
+    safeRevalidatePath("/dashboard/super-admin/transactions");
+    safeRevalidatePath("/dashboard/super-admin");
     safeRevalidatePath("/schools");
 
     return {

@@ -40,8 +40,13 @@ export function DashboardSidebar({ menuItems, onLinkClick }: DashboardSidebarPro
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-5 [scrollbar-width:thin]">
-        <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+      <nav 
+        data-lenis-prevent="true"
+        className="flex-1 overflow-y-auto overscroll-contain px-3 py-5 [scrollbar-width:thin] scrollbar-thin scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20 focus:outline-none"
+        tabIndex={0}
+        aria-label={language === 'ar' ? 'شريط التنقل الجانبي' : 'Sidebar Navigation'}
+      >
+        <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
           {language === 'ar' ? 'القائمة الرئيسية' : 'Main menu'}
         </p>
         <div className="space-y-1">

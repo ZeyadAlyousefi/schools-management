@@ -11,51 +11,66 @@ export async function createSupportTicket(data: {
   description: string;
   priority: string;
   userEmail: string;
+  schoolId?: string | null;
   image?: string | null; // Base64 string from frontend
 }) {
   try {
     let imageUrl = '';
 
-    // ১. যদি ইমেজ থাকে তবে ImgBB-তে আপলোড করা
+    // 1. Upload image if provided, with fail-safe error handling
     if (data.image) {
-      // Base64 ডাটা থেকে 'data:image/png;base64,' এই অংশটুকু বাদ দিয়ে শুধু মেইন কোডটি নিতে হয়
-      const base64Data = data.image.split(',')[1];
+      try {
+        const base64Data = data.image.includes(',') ? data.image.split(',')[1] : data.image;
+        if (process.env.IMGBB_API_KEY) {
+          const formData = new FormData();
+          formData.append('image', base64Data);
 
-      const formData = new FormData();
-      formData.append('image', base64Data);
+          const response = await fetch(
+            `https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`,
+            {
+              method: 'POST',
+              body: formData,
+            },
+          );
 
-      // ImgBB API Call
-      const response = await fetch(
-        `https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`,
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
-
-      const uploadResult = await response.json();
-
-      if (uploadResult.success) {
-        imageUrl = uploadResult.data.url; // ImgBB থেকে প্রাপ্ত সরাসরি লিঙ্ক
-      } else {
-        console.error('ImgBB Upload Failed:', uploadResult);
-        throw new Error('Image upload failed to ImgBB');
+          const uploadResult = await response.json();
+          if (uploadResult.success) {
+            imageUrl = uploadResult.data.url;
+          }
+        }
+      } catch (uploadErr) {
+        console.warn('Image upload skipped or failed, proceeding with ticket creation:', uploadErr);
       }
     }
 
-    // ২. Prisma দিয়ে ডাটাবেজে সেভ করা
+    // 2. Resolve schoolId if not directly provided
+    let resolvedSchoolId = data.schoolId || null;
+    if (!resolvedSchoolId && data.userEmail) {
+      const user = await prisma.user.findUnique({
+        where: { email: data.userEmail },
+        select: { schoolId: true }
+      });
+      if (user?.schoolId) {
+        resolvedSchoolId = user.schoolId;
+      }
+    }
+
+    // 3. Save ticket to database
     const ticket = await prisma.supportTicket.create({
       data: {
         subject: data.subject,
         description: data.description,
-        priority: data.priority,
+        priority: data.priority || 'low',
         userEmail: data.userEmail,
-        attachmentUrl: imageUrl, // ডাটাবেজে লিংক্টা সেভ হচ্ছে
+        schoolId: resolvedSchoolId,
+        attachmentUrl: imageUrl || null,
       },
     });
 
-    // ডাটা ক্যাশ ক্লিয়ার করা যাতে সাথে সাথে নতুন ডাটা দেখায়
+    // Revalidate paths
     revalidatePath('/dashboard/support');
+    revalidatePath('/dashboard/super-admin/support');
+    revalidatePath('/dashboard/principal/addsupport');
 
     return { success: true, data: ticket };
   } catch (error: any) {
@@ -73,6 +88,13 @@ export async function createSupportTicket(data: {
 export async function getAllSupportTickets() {
   try {
     const tickets = await prisma.supportTicket.findMany({
+      include: {
+        school: {
+          select: {
+            schoolName: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },

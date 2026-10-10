@@ -29,18 +29,9 @@ import {
   Bar,
   Cell
 } from 'recharts'
+import { formatCurrency } from '@/lib/formatters'
 import { useRoleGuard } from '@/hooks/useRoleGurad'
 import { useLanguage } from '@/context/LanguageProvider'
-
-// Mock Data for Graph
-const revenueDataFallback = [
-  { name: 'Jan', amount: 4000 },
-  { name: 'Feb', amount: 5200 },
-  { name: 'Mar', amount: 4800 },
-  { name: 'Apr', amount: 7000 },
-  { name: 'May', amount: 8500 },
-  { name: 'Jun', amount: 10000 },
-]
 
 export default function SuperAdminOverview() {
   const [dashboardData, setDashboardData] = useState<any>(null)
@@ -69,35 +60,35 @@ export default function SuperAdminOverview() {
   const stats = [
     {
       title: isAr ? "إجمالي المدارس" : "Total Schools",
-      value: dashboardData.totalSchools,
+      value: (dashboardData.totalSchools || 0).toString(),
       icon: Building2,
-      trend: isAr ? "فوري" : "Dynamic",
+      trend: isAr ? "قاعدة البيانات" : "Live DB",
       up: true,
-      subtitle: isAr ? "المدارس المسجلة" : "Registered Schools"
+      subtitle: isAr ? "المدارس المسجلة فعلياً" : "Registered Schools"
     },
     { 
       title: isAr ? "الاشتراكات النشطة" : "Active Subscriptions", 
-      value: dashboardData.activeSubscriptions, 
+      value: (dashboardData.activeSubscriptions || 0).toString(), 
       icon: ShieldCheck, 
       trend: isAr ? "مباشر" : "Real-time", 
       up: true, 
-      subtitle: isAr ? "المدارس المشتركة حاليًا" : "Current Paying Tenants" 
+      subtitle: isAr ? "المدارس المشتركة حاليًا" : "Current Active Subscriptions" 
     },
     { 
       title: isAr ? "الإيرادات الشهرية" : "Monthly Revenue", 
-      value: `ر.ي ${((dashboardData.monthlyRevenue || 0) / 1000).toFixed(1)}k`, 
+      value: formatCurrency(dashboardData.monthlyRevenue || 0, isAr ? 'ar' : 'en'), 
       icon: Wallet, 
-      trend: isAr ? "هذا الشهر" : "Recent", 
+      trend: isAr ? "هذا الشهر" : "Current Month", 
       up: true, 
-      subtitle: isAr ? "الشهر الحالي" : "Current Month" 
+      subtitle: isAr ? "إجمالي المعاملات الناجحة" : "Successful Transactions" 
     },
     { 
       title: isAr ? "إجمالي الإيرادات" : "Total Revenue", 
-      value: `ر.ي ${((dashboardData.totalRevenue || 0) / 1000).toFixed(1)}k`, 
+      value: formatCurrency(dashboardData.totalRevenue || 0, isAr ? 'ar' : 'en'), 
       icon: CreditCard, 
       trend: isAr ? "التراكمي" : "All-time", 
       up: true, 
-      subtitle: isAr ? "إجمالي الأرباح" : "Lifetime Earnings" 
+      subtitle: isAr ? "إجمالي الأرباح المحققة" : "Lifetime Real Revenue" 
     },
     { 
       title: isAr ? "تنتهي قريبًا" : "Expiring Soon", 
@@ -109,8 +100,8 @@ export default function SuperAdminOverview() {
     },
   ]
 
-  const planDistribution = dashboardData.planDistribution;
-  const revenueData = dashboardData.revenueGrowth || revenueDataFallback;
+  const planDistribution = dashboardData.planDistribution || [];
+  const revenueData = dashboardData.revenueGrowth || [];
 
   return (
     <div className="space-y-8 animate-fade-in-up">

@@ -248,8 +248,8 @@ export default function ActivityHelpDesk() {
                         <p className="text-[9px] font-black text-[var(--color-text-muted)] uppercase italic">
                           Institution ID
                         </p>
-                        <p className="text-sm font-black uppercase">
-                          {selectedTicket.schoolId || 'N/A'}
+                        <p className="text-sm font-black">
+                          {selectedTicket.school?.schoolName || selectedTicket.schoolId || (isAr ? 'غير محدد' : 'N/A')}
                         </p>
                       </div>
                     </div>

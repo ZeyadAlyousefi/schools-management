@@ -8,6 +8,7 @@ import {
 import { getPlans, deletePlan } from '@/app/actions/plans';
 import Swal from 'sweetalert2';
 import { useLanguage } from '@/context/LanguageProvider';
+import { formatCurrency } from '@/lib/formatters';
 
 const iconMap: Record<string, React.ElementType> = {
   Zap,
@@ -173,7 +174,9 @@ const handleDeletePlan = async (id: string) => {
 
                 <h3 className="text-2xl font-black text-[var(--color-text-primary)] mb-1">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-3xl font-black text-[var(--color-text-primary)]">{plan.price}</span>
+                  <span className="text-3xl font-black text-[var(--color-text-primary)]">
+                    {formatCurrency(plan.price, isAr ? 'ar' : 'en')}
+                  </span>
                   <span className="text-xs text-[var(--color-text-muted)] font-black uppercase tracking-widest">/ {plan.duration}</span>
                 </div>
 

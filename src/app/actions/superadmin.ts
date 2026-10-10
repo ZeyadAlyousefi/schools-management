@@ -140,19 +140,116 @@ export async function updateSystemConfig(data: any) {
     }
 }
 
+export async function getSystemSettings() {
+  try {
+    let config = await prisma.systemConfig.findUnique({ where: { id: "system_config" } });
+    if (!config) {
+      config = await prisma.systemConfig.create({
+        data: {
+          id: "system_config",
+          siteName: "Methqal Tech Schools",
+          siteSubtitle: JSON.stringify({
+            supportEmail: "support@methqal.tech",
+            supportPhone: "+967-1-234567",
+            defaultCurrency: "YER",
+            defaultLanguage: "ar",
+            minPasswordLength: 8,
+            requireSpecialChar: true,
+            allowRegistration: true,
+            sessionTimeoutHours: 24,
+            maintenanceMode: false,
+          }),
+          siteLogo: "/logo.png"
+        }
+      });
+    }
+
+    let extra: any = {};
+    if (config.siteSubtitle && config.siteSubtitle.startsWith('{')) {
+      try {
+        extra = JSON.parse(config.siteSubtitle);
+      } catch (e) {}
+    }
+
+    return {
+      success: true,
+      data: {
+        siteName: config.siteName || "Methqal Tech Schools",
+        siteLogo: config.siteLogo || "/logo.png",
+        supportEmail: extra.supportEmail || "support@methqal.tech",
+        supportPhone: extra.supportPhone || "+967-1-234567",
+        defaultCurrency: extra.defaultCurrency || "YER",
+        defaultLanguage: extra.defaultLanguage || "ar",
+        minPasswordLength: extra.minPasswordLength || 8,
+        requireSpecialChar: extra.requireSpecialChar ?? true,
+        allowRegistration: extra.allowRegistration ?? true,
+        sessionTimeoutHours: extra.sessionTimeoutHours || 24,
+        maintenanceMode: extra.maintenanceMode ?? false,
+      }
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function saveSystemSettings(settings: any) {
+  try {
+    const extra = {
+      supportEmail: settings.supportEmail,
+      supportPhone: settings.supportPhone,
+      defaultCurrency: settings.defaultCurrency,
+      defaultLanguage: settings.defaultLanguage,
+      minPasswordLength: Number(settings.minPasswordLength) || 8,
+      requireSpecialChar: Boolean(settings.requireSpecialChar),
+      allowRegistration: Boolean(settings.allowRegistration),
+      sessionTimeoutHours: Number(settings.sessionTimeoutHours) || 24,
+      maintenanceMode: Boolean(settings.maintenanceMode),
+    };
+
+    const updated = await prisma.systemConfig.upsert({
+      where: { id: "system_config" },
+      update: {
+        siteName: settings.siteName,
+        siteLogo: settings.siteLogo || "/logo.png",
+        siteSubtitle: JSON.stringify(extra),
+      },
+      create: {
+        id: "system_config",
+        siteName: settings.siteName,
+        siteLogo: settings.siteLogo || "/logo.png",
+        siteSubtitle: JSON.stringify(extra),
+      }
+    });
+
+    revalidatePath("/dashboard/super-admin/add-users");
+    revalidatePath("/");
+    return { success: true, data: updated };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
 
 
 
 
 
-// ৫. সুপার এডমিন ড্যাশবোর্ড ওভারভিউ ডাটা
+
+// ৫. 슈퍼 এডমিন ড্যাশবোর্ড ওভারভিউ ডাটা (Pure 100% Live Database Driven)
 export async function getSuperAdminDashboardData() {
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const [totalSchools, activeSubscriptions, monthlyRevenue, totalRevenue, expiringSoon, schoolsData] = await Promise.all([
+    const [
+      totalSchools,
+      activeSubscriptions,
+      monthlyRevenue,
+      totalRevenue,
+      expiringSoon,
+      subscriptionsData,
+      schoolsData
+    ] = await Promise.all([
       prisma.school.count(),
       prisma.subscription.count({
         where: { status: "SUCCESS", endDate: { gte: now } }
@@ -169,39 +266,63 @@ export async function getSuperAdminDashboardData() {
         where: { status: "SUCCESS", endDate: { gte: now, lte: in7Days } },
         include: { school: true },
         orderBy: { endDate: "asc" },
-        take: 5
+        take: 10
+      }),
+      prisma.subscription.findMany({
+        where: { status: "SUCCESS" },
+        select: { planName: true }
       }),
       prisma.school.findMany({
         select: { plan: true }
       })
     ]);
 
-    // Revenue Growth (Last 6 Months)
+    // Revenue Growth (Last 6 Months from real SUCCESS subscriptions)
     const revenueGrowth = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
       const monthRevenue = await prisma.subscription.aggregate({
         where: { status: "SUCCESS", createdAt: { gte: d, lte: end } },
         _sum: { amount: true }
       });
       revenueGrowth.push({
-        name: d.toLocaleString('default', { month: 'short' }),
+        name: d.toLocaleString('en-US', { month: 'short' }),
         amount: monthRevenue._sum.amount || 0
       });
     }
 
-    // Plan Distribution
-    const planCounts = schoolsData.reduce((acc: any, school: any) => {
-      acc[school.plan] = (acc[school.plan] || 0) + 1;
-      return acc;
-    }, {});
+    // Plan Distribution: Calculate from real subscriptions first, or school plans
+    const sourcePlans = subscriptionsData.length > 0 
+      ? subscriptionsData.map((s: any) => (s.planName || '').toLowerCase())
+      : schoolsData.map((s: any) => (s.plan || '').toLowerCase());
 
-    const total = schoolsData.length || 1;
+    const planCounts = sourcePlans.reduce((acc: any, plan: string) => {
+      const p = plan.includes('enter') ? 'enterprise' : (plan.includes('pro') || plan.includes('prem') ? 'premium' : 'basic');
+      acc[p] = (acc[p] || 0) + 1;
+      return acc;
+    }, { basic: 0, premium: 0, enterprise: 0 });
+
+    const totalPlans = sourcePlans.length;
     const planDistribution = [
-      { name: "Basic", value: Math.round(((planCounts.basic || 0) / total) * 100), color: "#3b82f6" },
-      { name: "Premium", value: Math.round(((planCounts.premium || 0) / total) * 100), color: "#8b5cf6" },
-      { name: "Enterprise", value: Math.round(((planCounts.enterprise || 0) / total) * 100), color: "#10b981" }
+      { 
+        name: "Basic", 
+        value: totalPlans > 0 ? Math.round(((planCounts.basic || 0) / totalPlans) * 100) : 0, 
+        count: planCounts.basic || 0,
+        color: "#3b82f6" 
+      },
+      { 
+        name: "Premium", 
+        value: totalPlans > 0 ? Math.round(((planCounts.premium || 0) / totalPlans) * 100) : 0, 
+        count: planCounts.premium || 0,
+        color: "#8b5cf6" 
+      },
+      { 
+        name: "Enterprise", 
+        value: totalPlans > 0 ? Math.round(((planCounts.enterprise || 0) / totalPlans) * 100) : 0, 
+        count: planCounts.enterprise || 0,
+        color: "#10b981" 
+      }
     ];
 
     return {
@@ -213,7 +334,7 @@ export async function getSuperAdminDashboardData() {
         totalRevenue: totalRevenue._sum.amount || 0,
         expiringSoonCount: expiringSoon.length,
         expiringSoonList: expiringSoon.map((s: any) => ({
-          schoolName: s.school.schoolName,
+          schoolName: s.school?.schoolName || 'Unknown School',
           expiryDate: s.endDate,
           plan: s.planName
         })),
@@ -222,32 +343,26 @@ export async function getSuperAdminDashboardData() {
       }
     };
   } catch (error: any) {
-    console.warn("Dashboard Stats Error, returning demo data:", error.message);
+    console.error("Dashboard Stats Live DB Error:", error.message);
+    // NEVER return fake/demo data under any circumstances
     return {
-      success: true,
+      success: false,
+      error: error.message,
       data: {
-        totalSchools: 12,
-        activeSubscriptions: 11,
-        monthlyRevenue: 1450000,
-        totalRevenue: 17400000,
-        expiringSoonCount: 1,
-        expiringSoonList: [
-          { schoolName: 'مدرسة الأمل الحديثة', expiryDate: new Date(Date.now() + 5 * 86400000), plan: 'Pro' }
-        ],
+        totalSchools: 0,
+        activeSubscriptions: 0,
+        monthlyRevenue: 0,
+        totalRevenue: 0,
+        expiringSoonCount: 0,
+        expiringSoonList: [],
         planDistribution: [
-          { name: "Basic", value: 25, color: "#3b82f6" },
-          { name: "Premium", value: 50, color: "#8b5cf6" },
-          { name: "Enterprise", value: 25, color: "#10b981" }
+          { name: "Basic", value: 0, count: 0, color: "#3b82f6" },
+          { name: "Premium", value: 0, count: 0, color: "#8b5cf6" },
+          { name: "Enterprise", value: 0, count: 0, color: "#10b981" }
         ],
-        revenueGrowth: [
-          { name: 'May', amount: 1200000 },
-          { name: 'Jun', amount: 1350000 },
-          { name: 'Jul', amount: 1400000 },
-          { name: 'Aug', amount: 1600000 },
-          { name: 'Sep', amount: 1550000 },
-          { name: 'Oct', amount: 1750000 },
-        ]
+        revenueGrowth: []
       }
     };
   }
 }
+
