@@ -464,7 +464,7 @@ export default function ReportsPage() {
                       {isAr ? 'استعراض الكشف' : 'PREVIEW STATEMENT'}
                     </button>
                     <Link
-                      href={report.viewLink}
+                      href={report.viewLink ?? '#'}
                       className="p-2.5 rounded-xl border border-border-light hover:bg-bg-page text-text-primary text-xs font-bold transition-all shadow-sm flex items-center justify-center"
                       title={isAr ? 'فتح صفحة الرسوم وسداد المستحقات' : 'Open Full Fees Page'}
                     >
@@ -473,7 +473,7 @@ export default function ReportsPage() {
                   </div>
                 ) : (
                   <Link
-                    href={report.viewLink}
+                    href={report.viewLink ?? '#'}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold rounded-xl hover:shadow-lg hover:shadow-blue-600/30 transition-all active:scale-[0.98] group/btn"
                     title={isAr ? 'عرض التفاصيل' : 'View Details'}
                   >
